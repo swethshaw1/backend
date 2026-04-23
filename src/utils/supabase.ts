@@ -11,11 +11,13 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 const customFetch = (url: string, options: any = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  
   return fetch(url, {
     ...options,
-    // Increase timeout for slow connections
-    signal: options.signal || AbortSignal.timeout(30000), 
-  });
+    signal: options.signal || controller.signal,
+  }).finally(() => clearTimeout(timeoutId));
 };
 
 export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
