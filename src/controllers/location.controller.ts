@@ -2,6 +2,9 @@ import { Response } from 'express';
 import { supabase } from '../utils/supabase';
 import { AuthRequest } from '../middleware/auth';
 
+/**
+ * Creates a new geo-fence location.
+ */
 export const createLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { name, latitude, longitude, radius_meters } = req.body;
@@ -19,18 +22,19 @@ export const createLocation = async (req: AuthRequest, res: Response): Promise<v
       .single();
 
     if (error) {
-      console.error('[LOCATION:CREATE] DB error:', error);
       res.status(500).json({ success: false, error: 'Failed to create location' });
       return;
     }
 
     res.status(201).json({ success: true, data });
   } catch (err) {
-    console.error('[LOCATION:CREATE] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Retrieves all active geo-fence locations.
+ */
 export const getLocations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { data, error } = await supabase
@@ -40,18 +44,19 @@ export const getLocations = async (req: AuthRequest, res: Response): Promise<voi
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[LOCATION:GET_ALL] DB error:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch locations' });
       return;
     }
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[LOCATION:GET_ALL] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Updates an existing geo-fence location's details.
+ */
 export const updateLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -72,18 +77,19 @@ export const updateLocation = async (req: AuthRequest, res: Response): Promise<v
       .single();
 
     if (error || !data) {
-      console.error('[LOCATION:UPDATE] DB error or not found:', error);
       res.status(404).json({ success: false, error: 'Location not found' });
       return;
     }
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[LOCATION:UPDATE] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Deactivates a geo-fence location (soft delete).
+ */
 export const deleteLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -93,14 +99,13 @@ export const deleteLocation = async (req: AuthRequest, res: Response): Promise<v
       .eq('id', id);
 
     if (error) {
-      console.error('[LOCATION:DELETE] DB error:', error);
       res.status(500).json({ success: false, error: 'Failed to delete location' });
       return;
     }
 
     res.json({ success: true, message: 'Location deactivated successfully' });
   } catch (err) {
-    console.error('[LOCATION:DELETE] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+

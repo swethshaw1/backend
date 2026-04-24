@@ -1,5 +1,11 @@
+/**
+ * Defines the possible roles for a user in the system.
+ */
 export type UserRole = 'admin' | 'supervisor' | 'client';
 
+/**
+ * Represents a user in the database.
+ */
 export interface User {
   id: string;
   email: string;
@@ -11,6 +17,9 @@ export interface User {
   updated_at: string;
 }
 
+/**
+ * Represents a defined geo-fence location for attendance tracking.
+ */
 export interface GeoFenceLocation {
   id: string;
   name: string;
@@ -23,6 +32,9 @@ export interface GeoFenceLocation {
   updated_at: string;
 }
 
+/**
+ * Represents an attendance record submitted by a user.
+ */
 export interface AttendanceRecord {
   id: string;
   user_id: string;
@@ -36,6 +48,9 @@ export interface AttendanceRecord {
   created_at: string;
 }
 
+/**
+ * Represents an invitation sent to a prospective user.
+ */
 export interface Invitation {
   id: string;
   email: string;
@@ -47,6 +62,9 @@ export interface Invitation {
   created_at: string;
 }
 
+/**
+ * JWT Payload structure used for authentication.
+ */
 export interface JwtPayload {
   userId: string;
   email: string;
@@ -55,6 +73,9 @@ export interface JwtPayload {
   exp?: number;
 }
 
+/**
+ * Generic API response structure.
+ */
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
@@ -62,9 +83,13 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+/**
+ * Common query parameters for paginated and filtered requests.
+ */
 export interface PaginationQuery {
   page?: number;
   limit?: number;
   from?: string;
   to?: string;
 }
+

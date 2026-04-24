@@ -1,6 +1,6 @@
 /**
- * Haversine formula to calculate the great-circle distance between two GPS points.
- * Returns distance in meters.
+ * Calculates the great-circle distance between two points on a sphere using the Haversine formula.
+ * @returns Distance in meters.
  */
 export const haversineDistance = (
   lat1: number,
@@ -8,7 +8,7 @@ export const haversineDistance = (
   lat2: number,
   lon2: number
 ): number => {
-  const R = 6371000; // Earth's radius in meters
+  const R = 6371000;
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
   const Δφ = ((lat2 - lat1) * Math.PI) / 180;
@@ -22,6 +22,9 @@ export const haversineDistance = (
   return R * c;
 };
 
+/**
+ * Determines if a given set of coordinates falls within a specified radius of a center point.
+ */
 export const isInsideGeoFence = (
   userLat: number,
   userLon: number,
@@ -33,8 +36,16 @@ export const isInsideGeoFence = (
   return distance <= radiusMeters;
 };
 
-export const GPS_ACCURACY_THRESHOLD = 50; // meters — attendance blocked if GPS accuracy > 50m
+/**
+ * Maximum allowable GPS accuracy in meters. 
+ * Requests with accuracy higher than this value are rejected.
+ */
+export const GPS_ACCURACY_THRESHOLD = 50;
 
+/**
+ * Validates whether the provided GPS accuracy is within the acceptable threshold.
+ */
 export const validateGpsAccuracy = (accuracyMeters: number): boolean => {
   return accuracyMeters <= GPS_ACCURACY_THRESHOLD;
 };
+

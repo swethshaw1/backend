@@ -3,12 +3,15 @@ import { supabase } from '../utils/supabase';
 import { AuthRequest } from '../middleware/auth';
 import { haversineDistance, isInsideGeoFence, GPS_ACCURACY_THRESHOLD } from '../utils/geofence';
 
+/**
+ * Marks attendance for the authenticated user based on their current location.
+ * Validates GPS accuracy and geo-fence proximity.
+ */
 export const markAttendance = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { latitude, longitude, accuracy_meters, location_id } = req.body;
     const userId = req.user!.userId;
 
-    // 0. Check if already marked today (UTC)
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
     const todayEnd = new Date();
@@ -29,7 +32,6 @@ export const markAttendance = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // 1. Fetch the geo-fence location
     const { data: location, error: locError } = await supabase
       .from('geo_fence_locations')
       .select('*')
@@ -38,12 +40,10 @@ export const markAttendance = async (req: AuthRequest, res: Response): Promise<v
       .single();
 
     if (locError || !location) {
-      console.error('[ATTENDANCE:MARK] Geo-fence location error:', locError);
       res.status(404).json({ success: false, error: 'Geo-fence location not found or inactive' });
       return;
     }
 
-    // 2. Validate GPS accuracy
     if (accuracy_meters > GPS_ACCURACY_THRESHOLD) {
       const record = await insertAttendanceRecord({
         user_id: userId,
@@ -63,7 +63,6 @@ export const markAttendance = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // 3. Calculate distance and check geofence
     const distanceFromCenter = haversineDistance(latitude, longitude, location.latitude, location.longitude);
     const inside = isInsideGeoFence(latitude, longitude, location.latitude, location.longitude, location.radius_meters);
 
@@ -93,11 +92,14 @@ export const markAttendance = async (req: AuthRequest, res: Response): Promise<v
       data: { record, distance_from_center: distanceFromCenter },
     });
   } catch (err) {
-    console.error('Mark attendance error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Retrieves attendance records for the currently authenticated user.
+ * Supports pagination and date range filtering.
+ */
 export const getMyAttendance = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
@@ -120,7 +122,6 @@ export const getMyAttendance = async (req: AuthRequest, res: Response): Promise<
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('[ATTENDANCE:GET_MY] Query error:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch attendance records' });
       return;
     }
@@ -131,11 +132,14 @@ export const getMyAttendance = async (req: AuthRequest, res: Response): Promise<
       meta: { total: count, page: Number(page), limit: Number(limit) },
     });
   } catch (err) {
-    console.error('[ATTENDANCE:GET_MY] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Retrieves all attendance records based on the user's role.
+ * Admins can see all records, while supervisors can only see their assigned clients.
+ */
 export const getAllAttendance = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { page = 1, limit = 50, from, to, user_id, location_id } = req.query;
@@ -153,9 +157,6 @@ export const getAllAttendance = async (req: AuthRequest, res: Response): Promise
       .order('marked_at', { ascending: false })
       .range(offset, offset + Number(limit) - 1);
 
-    // Visibility Rules:
-    // Admin: Can see everything (clients + supervisors)
-    // Supervisor: Can see only their assigned clients
     if (role === 'supervisor') {
       const { data: clients } = await supabase
         .from('users')
@@ -163,7 +164,6 @@ export const getAllAttendance = async (req: AuthRequest, res: Response): Promise
         .eq('supervisor_id', userId);
       const clientIds = (clients || []).map((c: { id: string }) => c.id);
       
-      // If user_id was requested, ensure it's one of their clients
       if (user_id && !clientIds.includes(user_id as string)) {
         res.status(403).json({ success: false, error: 'You do not have permission to view this user\'s attendance' });
         return;
@@ -171,7 +171,6 @@ export const getAllAttendance = async (req: AuthRequest, res: Response): Promise
 
       query = query.in('user_id', clientIds.length > 0 ? clientIds : ['none']);
     } else if (role !== 'admin') {
-      // Clients or others should only see their own (this route is usually for admins/supervisors though)
       query = query.eq('user_id', userId);
     }
 
@@ -183,7 +182,6 @@ export const getAllAttendance = async (req: AuthRequest, res: Response): Promise
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('[ATTENDANCE:GET_ALL] Query error:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch attendance records' });
       return;
     }
@@ -194,18 +192,20 @@ export const getAllAttendance = async (req: AuthRequest, res: Response): Promise
       meta: { total: count, page: Number(page), limit: Number(limit) },
     });
   } catch (err) {
-    console.error('[ATTENDANCE:GET_ALL] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Generates an attendance summary for the last 30 days.
+ * Access is restricted based on user role and ownership.
+ */
 export const getAttendanceSummary = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { user_id } = req.params;
     const role = req.user!.role;
     const callerId = req.user!.userId;
     
-    // 30-day summary
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -216,7 +216,6 @@ export const getAttendanceSummary = async (req: AuthRequest, res: Response): Pro
       .order('marked_at', { ascending: false });
 
     if (user_id) {
-      // Permission check if a specific user is requested
       if (role === 'supervisor') {
         const { data: user } = await supabase.from('users').select('supervisor_id').eq('id', user_id).single();
         if (user?.supervisor_id !== callerId) {
@@ -233,13 +232,11 @@ export const getAttendanceSummary = async (req: AuthRequest, res: Response): Pro
       } else if (role === 'client') {
         query = query.eq('user_id', callerId);
       }
-      // If admin and no user_id, it skips filtering and fetches ALL records.
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('[ATTENDANCE:SUMMARY] Query error:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch summary' });
       return;
     }
@@ -253,12 +250,13 @@ export const getAttendanceSummary = async (req: AuthRequest, res: Response): Pro
 
     res.json({ success: true, data: summary });
   } catch (err) {
-    console.error('[ATTENDANCE:SUMMARY] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
-// Helper
+/**
+ * Internal helper to insert an attendance record into the database.
+ */
 async function insertAttendanceRecord(payload: {
   user_id: string;
   location_id: string;
@@ -275,3 +273,4 @@ async function insertAttendanceRecord(payload: {
     .single();
   return data;
 }
+

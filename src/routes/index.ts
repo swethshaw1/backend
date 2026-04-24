@@ -9,7 +9,9 @@ import { validateRequest } from '../middleware/validate';
 
 const router = Router();
 
-// ─── Auth Routes ───────────────────────────────────────────────────────────────
+/**
+ * Authentication Routes
+ */
 router.post('/auth/register',
   [body('email').isEmail(), body('password').isLength({ min: 6 }), body('name').notEmpty()],
   validateRequest,
@@ -28,7 +30,9 @@ router.post('/auth/logout', authenticate, authController.logout);
 
 router.get('/auth/me', authenticate, authController.getMe);
 
-// ─── User / Admin Routes ───────────────────────────────────────────────────────
+/**
+ * User and Administration Routes
+ */
 router.get('/users', authenticate, authorize('admin', 'supervisor'), userController.getUsers);
 
 router.patch('/users/:id', authenticate, authorize('admin'),
@@ -43,7 +47,9 @@ router.post('/users/assign-supervisor', authenticate, authorize('admin'),
   userController.assignSupervisor
 );
 
-// ─── Invitation Routes ─────────────────────────────────────────────────────────
+/**
+ * Invitation Management Routes
+ */
 router.post('/invitations', authenticate, authorize('admin', 'supervisor'),
   [body('email').isEmail(), body('role').isIn(['supervisor', 'client'])],
   validateRequest,
@@ -54,7 +60,9 @@ router.get('/invitations', authenticate, authorize('admin', 'supervisor'), userC
 
 router.get('/invitations/validate/:token', userController.validateInvitation);
 
-// ─── Location Routes ───────────────────────────────────────────────────────────
+/**
+ * Geo-fence Location Routes
+ */
 router.post('/locations', authenticate, authorize('admin'),
   [
     body('name').notEmpty(),
@@ -80,7 +88,9 @@ router.delete('/locations/:id', authenticate, authorize('admin'),
   locationController.deleteLocation
 );
 
-// ─── Attendance Routes ─────────────────────────────────────────────────────────
+/**
+ * Attendance Tracking Routes
+ */
 router.post('/attendance/mark', authenticate, authorize('client', 'supervisor'),
   [
     body('latitude').isFloat({ min: -90, max: 90 }),
@@ -99,3 +109,4 @@ router.get('/attendance', authenticate, authorize('admin', 'supervisor'), attend
 router.get('/attendance/summary/:user_id?', authenticate, attendanceController.getAttendanceSummary);
 
 export default router;
+

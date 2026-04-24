@@ -5,11 +5,14 @@ import { supabase } from '../utils/supabase';
 import { generateAccessToken, generateRefreshToken, verifyToken } from '../utils/jwt';
 import { AuthRequest } from '../middleware/auth';
 
+/**
+ * Registers a new user. 
+ * Requires a valid invitation unless it's the first user in the system (who becomes Admin).
+ */
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, name } = req.body;
 
-    // Check if user already exists
     const { data: existing } = await supabase
       .from('users')
       .select('id')
@@ -21,7 +24,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check for active invitation
     const { data: invitation } = await supabase
       .from('invitations')
       .select('*')
@@ -50,12 +52,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       .single();
 
     if (error || !user) {
-      console.error('[AUTH:REGISTER] Database error:', error);
       res.status(500).json({ success: false, error: 'Failed to create user' });
       return;
     }
 
-    // Mark invitation as accepted
     if (invitation) {
       await supabase
         .from('invitations')
@@ -74,11 +74,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       message: 'Registration successful',
     });
   } catch (err) {
-    console.error('Register error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Authenticates a user and provides access and refresh tokens.
+ */
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
@@ -91,7 +93,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       .single();
 
     if (error || !user) {
-      console.error('[AUTH:LOGIN] User not found or DB error:', error);
       res.status(401).json({ success: false, error: 'Invalid credentials' });
       return;
     }
@@ -114,11 +115,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       data: { user: userSafe, accessToken, refreshToken },
     });
   } catch (err) {
-    console.error('Login error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Refreshes an expired access token using a valid refresh token.
+ */
 export const refreshTokens = async (req: Request, res: Response): Promise<void> => {
   try {
     const { refreshToken } = req.body;
@@ -149,11 +152,13 @@ export const refreshTokens = async (req: Request, res: Response): Promise<void> 
 
     res.json({ success: true, data: { accessToken, refreshToken: newRefreshToken } });
   } catch (err) {
-    console.error('[AUTH:REFRESH] Token refresh failed:', err);
     res.status(401).json({ success: false, error: 'Invalid or expired refresh token' });
   }
 };
 
+/**
+ * Logs out a user by invalidating their refresh token.
+ */
 export const logout = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { refreshToken } = req.body;
@@ -162,11 +167,13 @@ export const logout = async (req: AuthRequest, res: Response): Promise<void> => 
     }
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {
-    console.error('[AUTH:LOGOUT] Logout error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Returns the currently authenticated user's profile information.
+ */
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { data: user, error } = await supabase
@@ -176,19 +183,19 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
       .single();
 
     if (error || !user) {
-      console.error('[AUTH:GET_ME] User lookup error:', error);
       res.status(404).json({ success: false, error: 'User not found' });
       return;
     }
 
     res.json({ success: true, data: user });
   } catch (err) {
-    console.error('[AUTH:GET_ME] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
-// --- Helpers ---
+/**
+ * Internal helper to check if any users exist in the system.
+ */
 async function checkIfFirstUser(): Promise<boolean> {
   const { count } = await supabase
     .from('users')
@@ -196,6 +203,9 @@ async function checkIfFirstUser(): Promise<boolean> {
   return (count ?? 0) === 0;
 }
 
+/**
+ * Internal helper to store a new refresh token in the database.
+ */
 async function storeRefreshToken(userId: string, token: string): Promise<void> {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
@@ -206,3 +216,4 @@ async function storeRefreshToken(userId: string, token: string): Promise<void> {
     expires_at: expiresAt.toISOString(),
   });
 }
+

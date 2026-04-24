@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/jwt';
 import { UserRole } from '../types';
 
+/**
+ * Extended Request interface to include authenticated user information.
+ */
 export interface AuthRequest extends Request {
   user?: {
     userId: string;
@@ -10,6 +13,9 @@ export interface AuthRequest extends Request {
   };
 }
 
+/**
+ * Middleware to authenticate requests using JWT Bearer tokens.
+ */
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -23,11 +29,13 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
     req.user = { userId: payload.userId, email: payload.email, role: payload.role };
     next();
   } catch (err) {
-    console.error('[AUTH:MIDDLEWARE] Token verification failed:', err);
     res.status(401).json({ success: false, error: 'Invalid or expired token' });
   }
 };
 
+/**
+ * Middleware factory to restrict access based on user roles.
+ */
 export const authorize = (...roles: UserRole[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {
@@ -37,3 +45,4 @@ export const authorize = (...roles: UserRole[]) => {
     next();
   };
 };
+

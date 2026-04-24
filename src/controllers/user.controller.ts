@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../utils/supabase';
 import { AuthRequest } from '../middleware/auth';
 
+/**
+ * Retrieves a list of users.
+ * Supervisors are restricted to viewing only their assigned clients.
+ */
 export const getUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { role, supervisor_id } = req.query;
@@ -14,7 +18,6 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
       .select('id, email, name, role, supervisor_id, is_active, created_at, updated_at')
       .order('created_at', { ascending: false });
 
-    // Supervisors can only see their own clients
     if (callerRole === 'supervisor') {
       query = query.eq('supervisor_id', callerId);
     } else {
@@ -25,18 +28,19 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
     const { data, error } = await query;
 
     if (error) {
-      console.error('[USER:GET_ALL] DB error:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch users' });
       return;
     }
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[USER:GET_ALL] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Updates a user's profile information.
+ */
 export const updateUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -56,23 +60,23 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
       .single();
 
     if (error || !data) {
-      console.error('[USER:UPDATE] DB error or user not found:', error);
       res.status(404).json({ success: false, error: 'User not found' });
       return;
     }
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[USER:UPDATE] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Assigns a supervisor to a client.
+ */
 export const assignSupervisor = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { client_id, supervisor_id } = req.body;
 
-    // Verify supervisor exists and has the right role
     const { data: supervisor } = await supabase
       .from('users')
       .select('id, role')
@@ -93,35 +97,31 @@ export const assignSupervisor = async (req: AuthRequest, res: Response): Promise
       .single();
 
     if (error || !data) {
-      console.error('[USER:ASSIGN_SUPERVISOR] DB error or client not found:', error);
       res.status(404).json({ success: false, error: 'Client not found' });
       return;
     }
 
     res.json({ success: true, data, message: 'Supervisor assigned successfully' });
   } catch (err) {
-    console.error('[USER:ASSIGN_SUPERVISOR] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
-// Invitations
+/**
+ * Sends an invitation to a new user.
+ * Includes auto-assignment logic if a supervisor invites an already registered user.
+ */
 export const sendInvitation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { email, role } = req.body;
     const invitedBy = req.user!.userId;
     const callerRole = req.user!.role;
 
-    // Supervisors can only invite clients
     if (callerRole === 'supervisor' && role !== 'client') {
-      console.error('[USER:SEND_INVITE] Supervisor tried to invite non-client role:', role);
       res.status(403).json({ success: false, error: 'Supervisors can only invite clients' });
       return;
     }
 
-    // AUTO-ASSIGNMENT LOGIC:
-    // If the email already exists in 'users' and doesn't have a supervisor,
-    // and the inviter is a supervisor, assign them immediately.
     const { data: existingUser } = await supabase
       .from('users')
       .select('id, supervisor_id')
@@ -129,7 +129,6 @@ export const sendInvitation = async (req: AuthRequest, res: Response): Promise<v
       .single();
 
     if (existingUser && callerRole === 'supervisor' && !existingUser.supervisor_id) {
-      console.log(`[USER:SEND_INVITE] Auto-assigning existing user ${email} to supervisor ${invitedBy}`);
       await supabase
         .from('users')
         .update({ supervisor_id: invitedBy })
@@ -143,7 +142,6 @@ export const sendInvitation = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // Check no existing active invitation
     const { data: existing } = await supabase
       .from('invitations')
       .select('id')
@@ -158,7 +156,7 @@ export const sendInvitation = async (req: AuthRequest, res: Response): Promise<v
     }
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7-day expiry
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     const token = uuidv4();
     const supervisorId = callerRole === 'supervisor' ? invitedBy : null;
@@ -177,28 +175,27 @@ export const sendInvitation = async (req: AuthRequest, res: Response): Promise<v
       .single();
 
     if (error || !data) {
-      console.error('[USER:SEND_INVITE] DB error:', error);
       res.status(500).json({ success: false, error: 'Failed to create invitation' });
       return;
     }
 
-    // In production: send invitation email with deep link
-    // For now, return the token for testing
     res.status(201).json({
       success: true,
       data: {
         invitation: data,
-        // Deep link the mobile app would use: geoattendance://invite?token=xxx
         invite_link: `geoattendance://invite?token=${token}`,
       },
       message: 'Invitation created successfully',
     });
   } catch (err) {
-    console.error('[USER:SEND_INVITE] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Retrieves a list of invitations.
+ * Supervisors only see invitations they have issued.
+ */
 export const getInvitations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
@@ -216,18 +213,19 @@ export const getInvitations = async (req: AuthRequest, res: Response): Promise<v
     const { data, error } = await query;
 
     if (error) {
-      console.error('[USER:GET_INVITES] DB error:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch invitations' });
       return;
     }
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[USER:GET_INVITES] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
+/**
+ * Validates an invitation token.
+ */
 export const validateInvitation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { token } = req.params;
@@ -255,7 +253,7 @@ export const validateInvitation = async (req: AuthRequest, res: Response): Promi
 
     res.json({ success: true, data: { email: data.email, role: data.role } });
   } catch (err) {
-    console.error('[USER:VALIDATE_INVITE] Internal error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+
